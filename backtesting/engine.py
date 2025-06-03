@@ -35,9 +35,14 @@ def run_backtest(historical_data_df: pd.DataFrame,
     data['cash'] = initial_capital
     data['shares_held'] = 0.0
     data['portfolio_value'] = initial_capital
-    data['cost_basis_per_share'] = 0.0 # To track entry price for P&L calculation
+    data['cost_basis_per_share'] = 0.0
 
     trades_list = []
+    current_position_entry_price = 0.0
+
+    # Retrieve SL/TP parameters
+    stop_loss_pct = strategy_params.get('stop_loss_pct', 0.0) / 100.0
+    take_profit_pct = strategy_params.get('take_profit_pct', 0.0) / 100.0
 
     # --- 1. Strategy-Specific Signal Generation ---
     strategy_type = strategy_params.get('type')
@@ -76,79 +81,98 @@ def run_backtest(historical_data_df: pd.DataFrame,
         current_idx = data.index[i]
         prev_idx = data.index[i-1]
 
+        # Carry forward state from previous day
         data.loc[current_idx, 'cash'] = data.loc[prev_idx, 'cash']
         data.loc[current_idx, 'shares_held'] = data.loc[prev_idx, 'shares_held']
         data.loc[current_idx, 'position'] = data.loc[prev_idx, 'position']
-        data.loc[current_idx, 'portfolio_value'] = data.loc[prev_idx, 'portfolio_value']
+        data.loc[current_idx, 'cost_basis_per_share'] = data.loc[prev_idx, 'cost_basis_per_share']
+        # current_position_entry_price is a variable, carried by the loop scope from previous iteration or BUY action
 
-        trade_execution_price = data['Close'].iloc[i-1]
+        active_signal = data.loc[prev_idx, 'signal'] # Signal from previous day's close
+        strategy_execution_price = data.loc[prev_idx, 'Close'] # Strategy trades execute based on previous close
 
-        if pd.isna(trade_execution_price) or trade_execution_price <= 0:
-            current_day_close_price_for_mtm = data['Close'].iloc[i]
-            if pd.isna(current_day_close_price_for_mtm):
-                 data.loc[current_idx, 'portfolio_value'] = data.loc[prev_idx, 'portfolio_value']
-            else:
-                 data.loc[current_idx, 'portfolio_value'] = data.loc[prev_idx, 'cash'] + \
-                                                          (data.loc[prev_idx, 'shares_held'] * current_day_close_price_for_mtm)
-            continue
+        exited_today = False
+        exit_price = 0.0
+        exit_reason = ""
 
-        current_signal = data['signal'].iloc[i-1]
+        # --- Stop-Loss / Take-Profit Checks (only if in a position) ---
+        if data.loc[current_idx, 'position'] == 1: # Check current position state (copied from i-1, will be updated if exit)
+            # Stop-Loss Check: uses current day's Low price
+            if stop_loss_pct > 0 and current_position_entry_price > 0:
+                sl_level = current_position_entry_price * (1 - stop_loss_pct)
+                if data.loc[current_idx, 'Low'] <= sl_level:
+                    exit_price = sl_level
+                    exit_reason = "Stop-Loss Hit"
+                    exited_today = True
 
-        if current_signal == 1:
-            if data.loc[prev_idx, 'position'] == 0:
-                shares_to_buy = data.loc[prev_idx, 'cash'] // trade_execution_price
+            # Take-Profit Check (if not already stopped out): uses current day's High price
+            if not exited_today and take_profit_pct > 0 and current_position_entry_price > 0:
+                tp_level = current_position_entry_price * (1 + take_profit_pct)
+                if data.loc[current_idx, 'High'] >= tp_level:
+                    exit_price = tp_level
+                    exit_reason = "Take-Profit Hit"
+                    exited_today = True
+
+            # Strategy-based Sell Signal Check (if not SL/TP exited today)
+            # Signal is from prev_idx, execution price is also from prev_idx ('Close')
+            if not exited_today and active_signal == -1:
+                if pd.notna(strategy_execution_price) and strategy_execution_price > 0:
+                    exit_price = strategy_execution_price
+                    exit_reason = "Strategy Signal"
+                    exited_today = True
+                # If strategy_execution_price is NaN/invalid, this exit path is skipped.
+
+            if exited_today and exit_price > 0:
+                shares_to_sell = data.loc[current_idx, 'shares_held'] # Shares held at start of day i (copied from prev_idx)
+                cost_basis = data.loc[current_idx, 'cost_basis_per_share']
+                pnl = (exit_price - cost_basis) * shares_to_sell
+
+                data.loc[current_idx, 'cash'] += shares_to_sell * exit_price
+                data.loc[current_idx, 'shares_held'] = 0
+                data.loc[current_idx, 'position'] = 0 # Now Flat
+                data.loc[current_idx, 'cost_basis_per_share'] = 0.0
+                current_position_entry_price = 0.0 # Reset as we've exited
+
+                trades_list.append({
+                    'date': current_idx, # Trade executed on day i
+                    'type': 'SELL',
+                    'price': exit_price,
+                    'shares': shares_to_sell,
+                    'pnl': pnl,
+                    'reason': exit_reason,
+                    'cash_change': shares_to_sell * exit_price,
+                    'cash_remaining': data.loc[current_idx, 'cash']
+                })
+
+        # --- Buy Signal Logic (only if currently flat *after* any SL/TP/Strategy exits on day i) ---
+        # Signal is from prev_idx, execution price is also from prev_idx ('Close')
+        if data.loc[current_idx, 'position'] == 0 and active_signal == 1:
+            if pd.notna(strategy_execution_price) and strategy_execution_price > 0:
+                buy_price = strategy_execution_price
+                # Use cash available at this point in day i (after potential morning SL/TP sales)
+                shares_to_buy = data.loc[current_idx, 'cash'] // buy_price
+
                 if shares_to_buy > 0:
                     data.loc[current_idx, 'shares_held'] = shares_to_buy
-                    data.loc[current_idx, 'cash'] = data.loc[prev_idx, 'cash'] - (shares_to_buy * trade_execution_price)
-                    data.loc[current_idx, 'position'] = 1
+                    data.loc[current_idx, 'cash'] -= shares_to_buy * buy_price
+                    data.loc[current_idx, 'position'] = 1 # Now Long
+                    data.loc[current_idx, 'cost_basis_per_share'] = buy_price
+                    current_position_entry_price = buy_price
+
                     trades_list.append({
-                        'date': prev_idx,
+                        'date': current_idx, # Buy action taken on day i
                         'type': 'BUY',
-                        'price': trade_execution_price,
+                        'price': buy_price,
                         'shares': shares_to_buy,
-                        'cash_change': -(shares_to_buy * trade_execution_price),
+                        'reason': 'Strategy Signal',
+                        'cash_change': -(shares_to_buy * buy_price),
                         'cash_remaining': data.loc[current_idx, 'cash']
                     })
-                    # Update cost basis (average cost if adding to existing, but here it's all-in from flat)
-                    data.loc[current_idx, 'cost_basis_per_share'] = trade_execution_price
-                else: # Not enough cash to buy even 1 share, or price is invalid
-                    data.loc[current_idx, 'cost_basis_per_share'] = data.loc[prev_idx, 'cost_basis_per_share'] # carry forward
-            else: # Already in a position or other condition
-                 data.loc[current_idx, 'cost_basis_per_share'] = data.loc[prev_idx, 'cost_basis_per_share'] # carry forward
 
-        elif current_signal == -1:
-            if data.loc[prev_idx, 'position'] == 1:
-                if data.loc[prev_idx, 'shares_held'] > 0:
-                    entry_cost_basis = data.loc[prev_idx, 'cost_basis_per_share'] # Get from when shares were bought
-                    pnl_per_share = trade_execution_price - entry_cost_basis
-                    total_pnl = pnl_per_share * data.loc[prev_idx, 'shares_held']
-
-                    cash_from_sale = data.loc[prev_idx, 'shares_held'] * trade_execution_price
-                    data.loc[current_idx, 'cash'] = data.loc[prev_idx, 'cash'] + cash_from_sale
-                    shares_sold = data.loc[prev_idx, 'shares_held']
-                    data.loc[current_idx, 'shares_held'] = 0
-                    data.loc[current_idx, 'position'] = 0
-                    data.loc[current_idx, 'cost_basis_per_share'] = 0.0 # Reset cost basis
-                    trades_list.append({
-                        'date': prev_idx,
-                        'type': 'SELL',
-                        'price': trade_execution_price,
-                        'shares': shares_sold,
-                        'pnl': total_pnl, # Profit and Loss for this trade
-                        'cash_change': cash_from_sale,
-                        'cash_remaining': data.loc[current_idx, 'cash']
-                    })
-                else: # In a long position but somehow 0 shares held (should not happen with current logic)
-                    data.loc[current_idx, 'cost_basis_per_share'] = 0.0
-            else: # Not in a position to sell
-                data.loc[current_idx, 'cost_basis_per_share'] = data.loc[prev_idx, 'cost_basis_per_share'] # carry forward
-        else: # No trade signal or hold signal
-            data.loc[current_idx, 'cost_basis_per_share'] = data.loc[prev_idx, 'cost_basis_per_share'] # carry forward cost_basis
-
-
-        current_day_close_price = data['Close'].iloc[i]
+        # Update Daily Portfolio Value using Close price of day i
+        current_day_close_price = data.loc[current_idx, 'Close']
         if pd.isna(current_day_close_price):
-            data.loc[current_idx, 'portfolio_value'] = data.loc[prev_idx, 'portfolio_value']
+            data.loc[current_idx, 'portfolio_value'] = data.loc[prev_idx, 'portfolio_value'] # Carry forward if current close is NaN
         else:
             data.loc[current_idx, 'portfolio_value'] = data.loc[current_idx, 'cash'] + \
                                                      (data.loc[current_idx, 'shares_held'] * current_day_close_price)
@@ -272,9 +296,116 @@ if __name__ == '__main__':
         print("Test passed: Backtest with 1 row data correctly resulted in initial state and no trades.")
     else:
         print("Test failed: Backtest with 1 row data produced unexpected result.")
-        if portfolio_short is not None:
-            print(portfolio_short)
-        if trades_short:
-            print("Trades:", trades_short)
+        if portfolio_short is not None: print(portfolio_short)
+        if trades_short: print("Trades:", trades_short)
+
+    # --- 5. Test SL/TP Functionality ---
+    print("\n--- Testing Stop-Loss and Take-Profit ---")
+    sl_tp_dates = pd.to_datetime([f'2023-02-{d:02d}' for d in range(1, 15)])
+    sl_tp_data_base = {
+        'Open':  [100, 101, 102, 95,  96,  97,  105, 106, 107, 103, 102, 100, 98, 99], # Day i Open
+        'High':  [102, 103, 103, 97,  98,  108, 108, 109, 108, 105, 104, 102, 99, 100],# Day i High (for TP)
+        'Low':   [99,  100, 90,  94,  95,  96,  104, 105, 102, 101, 98, 97, 96, 97], # Day i Low (for SL)
+        'Close': [101, 102, 92,  96,  97,  107, 106, 107, 103, 102, 100, 98, 97, 98]  # Day i Close (for MTM and strategy signal)
+    }
+    sl_tp_df = pd.DataFrame(sl_tp_data_base, index=sl_tp_dates)
+
+    # Strategy: Always signal buy (1) to enter, then let SL/TP manage exit.
+    # We need an indicator column for the strategy part, even if it's simple.
+    sl_tp_df['SMA_short'] = 110 # Always above long SMA
+    sl_tp_df['SMA_long'] = 100  # Constant SMAs to force a buy signal initially
+
+    # Test Case 5.1: Stop-Loss Hit
+    print("\nTest 5.1: Stop-Loss Hit")
+    params_sl = {
+        'type': 'sma_crossover', 'short_window_col': 'SMA_short', 'long_window_col': 'SMA_long',
+        'stop_loss_pct': 5.0, 'take_profit_pct': 0.0 # 5% SL, no TP
+    }
+    # For this test, entry price will be Close of day 0 (101). SL = 101 * 0.95 = 95.95
+    # Day 2 Low is 90. So SL should hit on Day 2.
+    portfolio_sl, trades_sl = run_backtest(sl_tp_df.copy(), params_sl, initial_capital_main)
+    if portfolio_sl is not None and trades_sl:
+        print("Trades for SL test:")
+        for trade in trades_sl: print(trade)
+        if any(t['reason'] == 'Stop-Loss Hit' for t in trades_sl):
+            print("Stop-Loss Hit Test: PASSED")
+        else:
+            print("Stop-Loss Hit Test: FAILED - No SL trade recorded.")
+            print(portfolio_sl.tail())
+    else:
+        print("Stop-Loss Hit Test: FAILED - No portfolio or trades.")
+
+    # Test Case 5.2: Take-Profit Hit
+    print("\nTest 5.2: Take-Profit Hit")
+    params_tp = {
+        'type': 'sma_crossover', 'short_window_col': 'SMA_short', 'long_window_col': 'SMA_long',
+        'stop_loss_pct': 0.0, 'take_profit_pct': 5.0 # 5% TP, no SL
+    }
+    # Entry at 101. TP = 101 * 1.05 = 106.05
+    # Day 5 High is 108. TP should hit on Day 5.
+    # (Note: The sample data's 'SMA_short' always > 'SMA_long', so initial buy signal is always on.)
+    # We need to ensure the buy happens, then TP.
+    # The data needs to be long enough for the initial SMA calculation if we didn't use constants.
+    # For this specific test, we are giving constant SMA values to ensure a BUY signal.
+
+    # Let's use a fresh copy of sl_tp_df for each specific test if it modifies it (run_backtest makes a copy)
+    portfolio_tp, trades_tp = run_backtest(sl_tp_df.copy(), params_tp, initial_capital_main)
+    if portfolio_tp is not None and trades_tp:
+        print("Trades for TP test:")
+        for trade in trades_tp: print(trade)
+        if any(t['reason'] == 'Take-Profit Hit' for t in trades_tp):
+            print("Take-Profit Hit Test: PASSED")
+        else:
+            print("Take-Profit Hit Test: FAILED - No TP trade recorded.")
+            print(portfolio_tp.tail())
+    else:
+        print("Take-Profit Hit Test: FAILED - No portfolio or trades.")
+
+    # Test Case 5.3: Strategy Exit before SL/TP
+    print("\nTest 5.3: Strategy Exit before SL/TP")
+    sl_tp_df_strat = sl_tp_df.copy()
+    # Modify signal to cause a strategy exit before SL/TP might hit
+    # Buy on day 1 (signal from day 0). Let's say signal turns to sell on day 3 (Close).
+    # Entry at 101 (Close of day 0).
+    # SL = 101 * 0.9 = 90.9 (10% SL). TP = 101 * 1.1 = 111.1 (10% TP)
+    # Day 2 Low = 90 (SL would hit). Day 5 High = 108 (TP not hit)
+    # If signal at Close of day 2 is Sell (-1), then exit at Close of day 2 (92).
+    # sl_tp_df_strat.loc[sl_tp_df_strat.index[2], 'SMA_short'] = 90 # Force sell signal (short < long) for day 3 execution
+
+    sl_tp_df_strat_exit = sl_tp_df.copy()
+    # Modify SMAs for sl_tp_df_strat_exit.index[1] (second day of data)
+    # This signal will be active when processing sl_tp_df_strat_exit.index[2] (third day)
+    sl_tp_df_strat_exit.loc[sl_tp_df_strat_exit.index[1], 'SMA_short'] = 90  # short < long
+    sl_tp_df_strat_exit.loc[sl_tp_df_strat_exit.index[1], 'SMA_long'] = 100
+
+    # Ensure Day 2's Low/High do not trigger SL/TP for an entry price of 101
+    # Data for index[2] (third day): Open=102, High=103, Low=90, Close=92
+    # current_position_entry_price = 101 (from BUY based on index[0]'s signal, executed on index[1])
+    # SL = 101 * 0.9 = 90.9. Low[index[2]] = 90. This WILL hit SL.
+    # To test STRATEGY exit, the SL must NOT be hit on the day of the strategy exit.
+    sl_tp_df_strat_exit.loc[sl_tp_df_strat_exit.index[2], 'Low'] = 92 # Was 90. New Low is above SL (90.9).
+                                                                    # High[index[2]] is 103. TP is 111.1. No TP.
+    params_strat_exit = {
+        'type': 'sma_crossover', 'short_window_col': 'SMA_short', 'long_window_col': 'SMA_long',
+        'stop_loss_pct': 10.0, 'take_profit_pct': 10.0
+    }
+    portfolio_strat, trades_strat = run_backtest(sl_tp_df_strat_exit, params_strat_exit, initial_capital_main)
+    # Expected:
+    # 1. BUY on index[1] (price 101, signal from index[0])
+    # 2. Active signal for index[2] (from data at index[1]) is now SELL (-1)
+    # 3. On index[2], SL/TP not hit with Low=92/High=103. Strategy SELL occurs at Close of index[1] (price 102).
+
+    if portfolio_strat is not None and trades_strat:
+        print("Trades for Strategy Exit test (Revised):")
+        for trade in trades_strat: print(trade)
+        if len(trades_strat) >= 2 and \
+           trades_strat[1]['reason'] == 'Strategy Signal' and \
+           trades_strat[1]['price'] == sl_tp_df_strat_exit.loc[sl_tp_df_strat_exit.index[1],'Close']: # Executed at Close of signal day
+            print("Strategy Exit Test (Revised): PASSED")
+        else:
+            print("Strategy Exit Test (Revised): FAILED")
+            print(portfolio_strat.tail()) # Print tail for debugging
+    else:
+        print("Strategy Exit Test (Revised): FAILED - No portfolio or trades.")
 
     print("\nBacktesting engine core logic tests completed.")
