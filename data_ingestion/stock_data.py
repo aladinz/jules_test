@@ -52,9 +52,9 @@ if __name__ == '__main__':
     sample_ticker = "MSFT"
     sample_start_date = "2023-01-01"
     sample_end_date = "2023-12-31"
-    
+
     historical_data = get_historical_data(sample_ticker, sample_start_date, sample_end_date)
-    
+
     if not historical_data.empty:
         print(f"\nHistorical Data for {sample_ticker}:")
         print(historical_data.head())
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     invalid_data = get_historical_data(sample_invalid_ticker, sample_start_date, sample_end_date)
     if invalid_data.empty:
         print(f"\nAttempted to fetch data for invalid ticker {sample_invalid_ticker}, and received an empty DataFrame as expected.")
-    
+
     invalid_info = get_company_info(sample_invalid_ticker)
     if not invalid_info:
         print(f"Attempted to fetch info for invalid ticker {sample_invalid_ticker}, and received an empty dict as expected.")

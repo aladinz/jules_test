@@ -25,10 +25,10 @@ def plot_stock_prices(data: pd.DataFrame, ticker_symbol: str, price_column: str 
 
 from plotly.subplots import make_subplots
 
-def plot_stock_prices(data: pd.DataFrame, 
-                      ticker_symbol: str, 
-                      price_column: str = 'Close', 
-                      sma_series: pd.Series = None, 
+def plot_stock_prices(data: pd.DataFrame,
+                      ticker_symbol: str,
+                      price_column: str = 'Close',
+                      sma_series: pd.Series = None,
                       sma_window: int = None,
                       ema_series: pd.Series = None,
                       ema_window: int = None,
@@ -61,7 +61,7 @@ def plot_stock_prices(data: pd.DataFrame,
         return go.Figure()
 
     if rsi_series is not None and not rsi_series.empty:
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
                             vertical_spacing=0.05, row_heights=[0.7, 0.3])
         price_row, rsi_row = 1, 2
     else:
@@ -69,22 +69,22 @@ def plot_stock_prices(data: pd.DataFrame,
         price_row, rsi_row = 1, None
 
     # Price Plot
-    fig.add_trace(go.Scatter(x=data.index, y=data[price_column], mode='lines', name=price_column), 
+    fig.add_trace(go.Scatter(x=data.index, y=data[price_column], mode='lines', name=price_column),
                   row=price_row, col=1)
 
     # SMA Plot
     if sma_series is not None and not sma_series.empty:
-        fig.add_trace(go.Scatter(x=sma_series.index, y=sma_series, mode='lines', name=f'SMA ({sma_window})'), 
+        fig.add_trace(go.Scatter(x=sma_series.index, y=sma_series, mode='lines', name=f'SMA ({sma_window})'),
                       row=price_row, col=1)
 
     # EMA Plot
     if ema_series is not None and not ema_series.empty:
-        fig.add_trace(go.Scatter(x=ema_series.index, y=ema_series, mode='lines', name=f'EMA ({ema_window})'), 
+        fig.add_trace(go.Scatter(x=ema_series.index, y=ema_series, mode='lines', name=f'EMA ({ema_window})'),
                       row=price_row, col=1)
-    
+
     # RSI Plot
     if rsi_row and rsi_series is not None and not rsi_series.empty:
-        fig.add_trace(go.Scatter(x=rsi_series.index, y=rsi_series, mode='lines', name=f'RSI ({rsi_window})'), 
+        fig.add_trace(go.Scatter(x=rsi_series.index, y=rsi_series, mode='lines', name=f'RSI ({rsi_window})'),
                       row=rsi_row, col=1)
         fig.update_yaxes(title_text="RSI", row=rsi_row, col=1)
         # Add overbought/oversold lines for RSI
@@ -135,17 +135,17 @@ if __name__ == '__main__':
     # fig_ema.show()
 
     # Test plotting with SMA and EMA
-    fig_sma_ema = plot_stock_prices(sample_df, "SAMPLE", price_column='Close', 
+    fig_sma_ema = plot_stock_prices(sample_df, "SAMPLE", price_column='Close',
                                     sma_series=sma_data, sma_window=5,
                                     ema_series=ema_data, ema_window=5)
     # fig_sma_ema.show()
-    
+
     # Test plotting with RSI
     fig_rsi = plot_stock_prices(sample_df, "SAMPLE", price_column='Close', rsi_series=rsi_data, rsi_window=5)
     # fig_rsi.show()
 
     # Test plotting with All indicators
-    fig_all = plot_stock_prices(sample_df, "SAMPLE", price_column='Close', 
+    fig_all = plot_stock_prices(sample_df, "SAMPLE", price_column='Close',
                                 sma_series=sma_data, sma_window=5,
                                 ema_series=ema_data, ema_window=5,
                                 rsi_series=rsi_data, rsi_window=5)

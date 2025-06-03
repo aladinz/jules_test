@@ -16,11 +16,11 @@ def calculate_sma(data: pd.DataFrame, window: int, price_column: str = 'Close') 
     if price_column not in data.columns:
         print(f"Error: Price column '{price_column}' not found in DataFrame.")
         return pd.Series(dtype=float)
-    
+
     if len(data) < window:
         print(f"Error: Data length ({len(data)}) is less than SMA window ({window}).")
         return pd.Series(dtype=float)
-        
+
     return data[price_column].rolling(window=window).mean()
 
 def calculate_ema(data: pd.DataFrame, window: int, price_column: str = 'Close') -> pd.Series:
@@ -64,7 +64,7 @@ if __name__ == '__main__':
 
     sma_3 = calculate_sma(sample_df, window=3)
     print("\nSMA (3-day):\n", sma_3)
-    
+
     # Test with a non-existent column for SMA
     sma_error_col = calculate_sma(sample_df, window=3, price_column='NonExistent')
     print("\nSMA (error column):\n", sma_error_col)
@@ -110,19 +110,19 @@ def calculate_rsi(data: pd.DataFrame, window: int = 14, price_column: str = 'Clo
         return pd.Series(dtype=float)
 
     delta = data[price_column].diff()
-    
+
     gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
 
     rs = gain / loss
     rsi = 100 - (100 / (1 + rs))
-    
+
     return rsi
 
 if __name__ == '__main__':
     # ... (previous test code for SMA and EMA remains the same)
     # Create sample data for testing
-    sample_dates = pd.to_datetime(['2023-01-01', '2023-01-02', '2023-01-03', '2023-01-04', '2023-01-05', 
+    sample_dates = pd.to_datetime(['2023-01-01', '2023-01-02', '2023-01-03', '2023-01-04', '2023-01-05',
                                    '2023-01-06', '2023-01-07', '2023-01-08', '2023-01-09', '2023-01-10',
                                    '2023-01-11', '2023-01-12', '2023-01-13', '2023-01-14', '2023-01-15'])
     sample_prices = [10, 12, 11, 13, 14, 15, 16, 17, 18, 19, 20, 19, 18, 17, 16] # Extended for RSI
@@ -135,7 +135,7 @@ if __name__ == '__main__':
 
     sma_3 = calculate_sma(sample_df, window=3)
     print("\nSMA (3-day):\n", sma_3)
-    
+
     # Test with a non-existent column for SMA
     sma_error_col = calculate_sma(sample_df, window=3, price_column='NonExistent')
     print("\nSMA (error column):\n", sma_error_col)
@@ -158,14 +158,14 @@ if __name__ == '__main__':
     # Test with insufficient data for EMA
     ema_error_len = calculate_ema(sample_df.head(2), window=3) # Using window 3 for a 2-row df
     print("\nEMA (insufficient data):\n", ema_error_len)
-    
+
     # Test RSI
     rsi_14 = calculate_rsi(sample_df, window=5) # Using a smaller window for sample data
     print("\nRSI (5-period):\n", rsi_14)
 
     rsi_default = calculate_rsi(sample_df.head(10)) # Test with default window 14, needs more data
     print("\nRSI (14-period with limited data - expecting error or NaNs):\n", rsi_default)
-    
+
     rsi_full_data_14 = calculate_rsi(sample_df, window=14)
     print("\nRSI (14-period with full data):\n", rsi_full_data_14)
 
