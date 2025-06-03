@@ -1,29 +1,4 @@
 import plotly.graph_objects as go
-import pandas as pd
-
-def plot_stock_prices(data: pd.DataFrame, ticker_symbol: str, price_column: str = 'Close') -> go.Figure:
-    """
-    Generates a line chart for stock prices.
-
-    Args:
-        data (pd.DataFrame): DataFrame containing stock data with a DateTimeIndex.
-        ticker_symbol (str): The stock ticker symbol for chart title.
-        price_column (str): The column to plot (e.g., 'Close', 'Open'). Defaults to 'Close'.
-
-    Returns:
-        go.Figure: A Plotly figure object. Returns an empty figure if data is empty or column not found.
-    """
-    fig = go.Figure()
-
-    if price_column not in data.columns:
-        print(f"Error: Price column '{price_column}' not found in data.")
-        return fig # Return empty figure
-
-    if data.empty:
-        print("Error: Data for plotting is empty.")
-        return fig # Return empty figure
-
-import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 
@@ -70,11 +45,12 @@ def plot_stock_prices(data: pd.DataFrame,
     # Determine number of rows and row heights
     rows = 2
     row_heights = [0.7, 0.3]
-    specs = [[{"secondary_y": False}], [{"secondary_y": False}]] # Specs for subplots
+    specs = [[{"secondary_y": False}], [{"secondary_y": False}]]
 
-    if rsi_series is not None and not rsi_series.empty:
+    # Use isinstance to check if rsi_series is a pandas Series and not empty
+    if isinstance(rsi_series, pd.Series) and not rsi_series.empty:
         rows = 3
-        row_heights = [0.6, 0.2, 0.2] # Adjust heights for 3 plots
+        row_heights = [0.6, 0.2, 0.2]
         specs = [[{"secondary_y": False}], [{"secondary_y": False}], [{"secondary_y": False}]]
 
 
@@ -100,16 +76,15 @@ def plot_stock_prices(data: pd.DataFrame,
     else: # Line chart
         if price_column not in data.columns:
             print(f"Error: Price column '{price_column}' for line chart not found in data.")
-            # Add a dummy trace to avoid error if no price data at all
             fig.add_trace(go.Scatter(x=[None],y=[None], name="No Price Data"), row=1, col=1)
         else:
-            fig.add_trace(go.Scatter(x=data.index, y=data[price_column], mode='lines', name=data[price_column].name), # Use series name
+            fig.add_trace(go.Scatter(x=data.index, y=data[price_column], mode='lines', name=data[price_column].name),
                           row=1, col=1)
 
-    if sma_series is not None and not sma_series.empty:
+    if isinstance(sma_series, pd.Series) and not sma_series.empty:
         fig.add_trace(go.Scatter(x=sma_series.index, y=sma_series, mode='lines', name=f'SMA ({sma_window})',
                                  line=dict(width=1)), row=1, col=1)
-    if ema_series is not None and not ema_series.empty:
+    if isinstance(ema_series, pd.Series) and not ema_series.empty:
         fig.add_trace(go.Scatter(x=ema_series.index, y=ema_series, mode='lines', name=f'EMA ({ema_window})',
                                  line=dict(width=1)), row=1, col=1)
     fig.update_yaxes(title_text="Price", row=1, col=1)
@@ -120,38 +95,37 @@ def plot_stock_prices(data: pd.DataFrame,
         fig.add_trace(go.Bar(x=data.index, y=data['Volume'], name='Volume', marker_color='rgba(100,100,150,0.5)'),
                       row=2, col=1)
     else:
-        fig.add_trace(go.Scatter(x=[None],y=[None], name="No Volume Data"), row=2, col=1) # Placeholder
+        fig.add_trace(go.Scatter(x=[None],y=[None], name="No Volume Data"), row=2, col=1)
     fig.update_yaxes(title_text="Volume", row=2, col=1)
 
 
     # Subplot 3: RSI (if applicable)
-    if rsi_series is not None and not rsi_series.empty:
+    if isinstance(rsi_series, pd.Series) and not rsi_series.empty: # Condition already updated here
         fig.add_trace(go.Scatter(x=rsi_series.index, y=rsi_series, mode='lines', name=f'RSI ({rsi_window})',
                                  line=dict(color='purple', width=1)), row=3, col=1)
         fig.add_hline(y=70, line_dash="dash", line_color="red", line_width=1, row=3, col=1)
         fig.add_hline(y=30, line_dash="dash", line_color="green", line_width=1, row=3, col=1)
-        fig.update_yaxes(title_text="RSI", range=[0,100], row=3, col=1) # RSI range 0-100
-        fig.update_xaxes(title_text="Date", row=3, col=1) # Date axis label on the bottom-most plot
-    else: # If no RSI, date axis label goes on the volume plot
-        fig.update_xaxes(title_text="Date", row=2, col=1)
-
+        fig.update_yaxes(title_text="RSI", range=[0,100], row=3, col=1)
+    # No specific x-axis title update needed here, will be handled by the global setting below
 
     fig.update_layout(
         title_text=f"{ticker_symbol} Analysis",
-        height=700 if rows==3 else 500, # Adjust height based on number of subplots
+        height=700 if rows==3 else 500,
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        xaxis_rangeslider_visible=False # Turn off rangeslider for all x-axes
+        xaxis_rangeslider_visible=False
     )
 
     # Ensure x-axis title is only on the very bottom plot
     if rows == 2:
          fig.update_xaxes(title_text="Date", row=2, col=1)
-         fig.update_xaxes(title_text=None, row=1, col=1) # Remove title from price subplot x-axis
+         fig.update_xaxes(title_text=None, row=1, col=1)
     elif rows == 3:
          fig.update_xaxes(title_text="Date", row=3, col=1)
          fig.update_xaxes(title_text=None, row=1, col=1)
          fig.update_xaxes(title_text=None, row=2, col=1)
+    else: # Single plot (should not happen with current logic, but as a safeguard)
+        fig.update_xaxes(title_text="Date", row=1, col=1)
 
 
     return fig
@@ -159,12 +133,16 @@ def plot_stock_prices(data: pd.DataFrame,
 if __name__ == '__main__':
     # Sample Data for testing (more comprehensive)
     num_days = 60
+    # Use numpy for random data generation if not already imported, but pandas usually brings it.
+    # For explicit use, ensure 'import numpy as np' is at the top if these lines are uncommented for direct run.
+    # For now, assuming pandas' internal numpy is sufficient for these test data lines.
     sample_dates_idx = pd.to_datetime([pd.Timestamp('2023-01-01') + pd.Timedelta(days=i) for i in range(num_days)])
-    close_prices = 150 + np.cumsum(np.random.randn(num_days) * 2 + 0.1) # Random walk with slight upward drift
-    open_prices = close_prices - np.random.uniform(-1, 1, num_days)
-    high_prices = np.maximum(close_prices, open_prices) + np.random.uniform(0, 2, num_days)
-    low_prices = np.minimum(close_prices, open_prices) - np.random.uniform(0, 2, num_days)
+    close_prices = 150 + pd.Series(np.random.randn(num_days) * 2 + 0.1).cumsum()
+    open_prices = close_prices - pd.Series(np.random.uniform(-1, 1, num_days))
+    high_prices = pd.concat([close_prices, open_prices], axis=1).max(axis=1) + pd.Series(np.random.uniform(0, 2, num_days))
+    low_prices = pd.concat([close_prices, open_prices], axis=1).min(axis=1) - pd.Series(np.random.uniform(0, 2, num_days))
     volume_data = np.random.randint(100000, 5000000, num_days)
+
 
     sample_df_full = pd.DataFrame({
         'Open': open_prices,
@@ -182,9 +160,9 @@ if __name__ == '__main__':
     loss_rsi = (-delta_rsi.where(delta_rsi < 0, 0)).fillna(0).rolling(window=14).mean()
     rs_rsi = gain_rsi / loss_rsi
     rs_rsi.replace([np.inf, -np.inf], np.nan, inplace=True)
-    rs_rsi.fillna(method='ffill', inplace=True) # Or some other handling for NaNs from division by zero
+    rs_rsi.fillna(method='ffill', inplace=True)
     rsi_14 = 100 - (100 / (1 + rs_rsi))
-    rsi_14.fillna(50, inplace=True) # Fill initial NaNs in RSI with neutral 50
+    rsi_14.fillna(50, inplace=True)
 
 
     print("Generating sample charts (if running locally, uncomment .show()):")
@@ -234,3 +212,4 @@ if __name__ == '__main__':
     print("Fig7: Chart with missing Volume data created.")
 
     print("\nSample charts generation complete.")
+```
