@@ -232,8 +232,8 @@ if __name__ == '__main__':
     rsi_data_test = sample_ohlc_data.copy()
     delta = rsi_data_test['Close'].diff()
     gain = (delta.where(delta > 0, 0)).fillna(0).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).fillna(0).rolling(window=14).mean()
-    rs = gain / loss
+    loss = (-delta.where(delta < 0, 0)).fillna(0).rolling(window=14).mean() # Ensure this line is complete
+    rs = gain / loss # Ensure this is on a new line after 'loss'
     rs.replace([np.inf, -np.inf], np.nan, inplace=True)
     rs.fillna(method='ffill', inplace=True)
     rsi_data_test['RSI_value'] = 100 - (100 / (1 + rs))
