@@ -216,7 +216,7 @@ def render_sentiment_analysis_tab(ticker_symbol, is_enabled):
             avg_text = "Positive" if avg_score > 0.05 else "Negative" if avg_score < -0.05 else "Neutral"
             st.write(f"**Avg News Sentiment:** {avg_score:.4f} ({avg_text})")
 
-            # Bar chart logic - this is the block to ensure is correctly indented
+            # Bar chart logic
             positive_count, neutral_count, negative_count = 0,0,0
             for score_data in scores:
                 compound = score_data['sentiment']['compound']
@@ -232,7 +232,7 @@ def render_sentiment_analysis_tab(ticker_symbol, is_enabled):
             if chart_df['Headlines'].sum() > 0:
                 st.subheader("News Sentiment Distribution")
                 st.bar_chart(chart_df.set_index('Sentiment'))
-            elif news: # news is not empty, but all items might have been perfectly neutral for the thresholds
+            elif news:
                 st.info("No distinct positive/negative sentiment categories to plot (e.g., all items were neutral).")
 
             with st.expander("View Individual News & Sentiments"):
@@ -258,6 +258,7 @@ def main_trading_analysis_page():
     st.title("Trading Analysis Dashboard")
 
     st.sidebar.header("User Input Features")
+    # ticker_symbol is now defined inside main_trading_analysis_page
     ticker_symbol = st.sidebar.text_input("Ticker Symbol", "AAPL", key="ta_ticker").upper()
 
     today = datetime.date.today(); default_start = datetime.date(today.year - 1, 1, 1)
@@ -278,7 +279,7 @@ def main_trading_analysis_page():
     enable_sentiment = st.sidebar.checkbox("Enable Sentiment Analysis", value=False, key="ta_enable_sentiment")
 
     if not ticker_symbol: st.info("Enter ticker for Trading Analysis."); st.stop()
-    st.header(f"Stock Analysis for {ticker_symbol}")
+    st.header(f"Stock Analysis for {ticker_symbol}") # This needs ticker_symbol
 
     company_info_data, stock_data_df_main = None, pd.DataFrame()
     with st.spinner(f"Fetching data for {ticker_symbol}..."):
@@ -301,9 +302,7 @@ def main_trading_analysis_page():
         idx_offset +=1
     if enable_sentiment:
         with tabs[idx_offset]: render_sentiment_analysis_tab(ticker_symbol, enable_sentiment)
-        # idx_offset +=1 # No need to increment if it's the last possible optional tab before Company Info
 
-    # Find Company Info tab by its title to be robust against optional tabs
     company_info_tab_actual_idx = tab_titles.index("Company Info")
     with tabs[company_info_tab_actual_idx]: render_company_info_tab(company_info_data, ticker_symbol)
 
@@ -347,5 +346,3 @@ elif app_mode == "Backtesting":
         else: handle_backtest_execution(bt_ticker, bt_start, bt_end, bt_capital, bt_params, bt_strategy_disp)
 elif app_mode == "About":
     render_about_page()
-
-[end of app.py]
