@@ -131,34 +131,21 @@ def handle_backtest_execution(bt_ticker, bt_start_date, bt_end_date, initial_cap
                 st.subheader("Trades Log")
                 if trades_list:
                     trades_df = pd.DataFrame(trades_list)
-                    # Define a preferred column order, including 'reason'
-                    desired_columns = [
-                        'date', 'type', 'price', 'shares', 'pnl', 'reason',
-                        'cash_change', 'cash_remaining'
-                    ]
-                    # Create a list of columns that actually exist in trades_df, in the desired order
+                    desired_columns = ['date', 'type', 'price', 'shares', 'pnl', 'reason', 'cash_change', 'cash_remaining']
                     ordered_columns = [col for col in desired_columns if col in trades_df.columns]
-                    # Add any columns from trades_df not in desired_columns to the end of the list
                     for col in trades_df.columns:
-                        if col not in ordered_columns:
-                            ordered_columns.append(col)
-
+                        if col not in ordered_columns: ordered_columns.append(col)
                     trades_df_display = trades_df[ordered_columns].copy()
-
                     if 'date' in trades_df_display.columns:
-                        try:
-                            trades_df_display['date'] = pd.to_datetime(trades_df_display['date']).dt.strftime('%Y-%m-%d')
+                        try: trades_df_display['date'] = pd.to_datetime(trades_df_display['date']).dt.strftime('%Y-%m-%d')
                         except Exception: pass
-
                     for col_format in ['price', 'pnl', 'cash_change', 'cash_remaining']:
                         if col_format in trades_df_display.columns:
                             trades_df_display[col_format] = trades_df_display[col_format].apply(lambda x: f"{x:,.2f}" if isinstance(x, (int, float)) else x)
                     if 'shares' in trades_df_display.columns:
                          trades_df_display['shares'] = trades_df_display['shares'].apply(lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) else x)
-
                     st.dataframe(trades_df_display)
-                else:
-                    st.info("No trades were executed during this backtest.")
+                else: st.info("No trades were executed during this backtest.")
             st.info("Disclaimer: Backtesting is based on historical data and does not guarantee future results. Costs like slippage/commission are not included.")
         except Exception as e:
             st.error(f"Backtesting Error: {e}. Ensure date range allows for indicator calculations.")
@@ -173,14 +160,11 @@ def render_price_chart_tab(stock_data_df, ticker_symbol, chart_type, selected_in
     fig = plot_stock_prices(
         data=stock_data_df,
         ticker_symbol=ticker_symbol,
-        price_column='Close',  # Default for line chart, Candlestick uses OHLC from data
-        chart_type=chart_type.lower(), # This is already the string 'line' or 'candlestick'
-        sma_series=sma,
-        sma_window=sma_w,
-        ema_series=ema,
-        ema_window=ema_w,
-        rsi_series=rsi,
-        rsi_window=rsi_w
+        price_column='Close',
+        chart_type=chart_type.lower(),
+        sma_series=sma, sma_window=sma_w,
+        ema_series=ema, ema_window=ema_w,
+        rsi_series=rsi, rsi_window=rsi_w
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -192,49 +176,30 @@ def render_ml_predictions_tab(stock_data_df, is_enabled):
     st.subheader("ML-Based Price Prediction (Experimental)")
     if not is_enabled: st.info("Enable ML from sidebar."); return
     if stock_data_df.empty: st.warning("No data for ML."); return
-
-    accuracy_val = None  # Defensive initialization
-    log_content = ""     # Initialize log_content
-    model = None         # Initialize model
-
+    accuracy_val, log_content, model = None, "", None
     try:
         X_ml, y_ml = prepare_features_for_ml(stock_data_df.copy())
         if X_ml.empty or len(X_ml) < 30: st.warning(f"Not enough data for ML (need 30 pts, got {len(X_ml)})."); return
-
         with st.spinner("Training ML model..."):
             old_stdout = sys.stdout; sys.stdout = captured_output = StringIO()
-            model, accuracy_val = train_model(X_ml, y_ml) # accuracy_val gets assigned here if successful
+            model, accuracy_val = train_model(X_ml, y_ml)
             sys.stdout = old_stdout; log_content = captured_output.getvalue()
-
         if model:
-            # Display the textual prediction
             pred, prob = make_prediction(model, X_ml.iloc[[-1]])
-            if pred is not None:
-                st.markdown(f"**Prediction for Next Day:** {'**UP**' if pred==1 else '**DOWN/SAME**'}")
-
-            # Use st.columns for side-by-side display of Accuracy and Confidence
+            if pred is not None: st.markdown(f"**Prediction for Next Day:** {'**UP**' if pred==1 else '**DOWN/SAME**'}")
             col1, col2 = st.columns(2)
             with col1:
-                st.metric(label="Model Test Accuracy", value=f"{accuracy_val*100:.2f}%" if accuracy_val is not None else "N/A")
-                if accuracy_val is not None:
-                    st.progress(int(accuracy_val*100))
+                st.metric("Model Test Accuracy", f"{accuracy_val*100:.2f}%" if accuracy_val is not None else "N/A")
+                if accuracy_val is not None: st.progress(int(accuracy_val*100))
             with col2:
                 if pred is not None and prob is not None:
-                    st.metric(label="Prediction Confidence", value=f"{prob*100:.2f}%")
-                    st.progress(int(prob*100))
-                else:
-                    st.info("Prediction could not be made (or probability not available).")
-
-            st.text("Model Training Log (stdout):")
-            # Use log_content here, and check if it has data
-            if log_content:
-                st.text_area("ml_training_log", log_content, height=100)
+                    st.metric("Prediction Confidence", f"{prob*100:.2f}%"); st.progress(int(prob*100))
+                else: st.info("Prediction could not be made.")
+            if log_content: st.text("Model Training Log (stdout):"); st.text_area("ml_log", log_content, height=100)
             st.caption("ML model is experimental. For informational use only.")
         else:
             st.error("Failed to train ML model.")
-            if log_content:
-                st.text("Model Training Log (stdout - Attempt):")
-                st.text_area("ml_training_log_fail", log_content, height=100)
+            if log_content: st.text("Model Training Log (stdout - Attempt):"); st.text_area("ml_log_fail", log_content, height=100)
     except Exception as e: st.error(f"ML Error: {e}")
 
 def render_sentiment_analysis_tab(ticker_symbol, is_enabled):
@@ -244,38 +209,31 @@ def render_sentiment_analysis_tab(ticker_symbol, is_enabled):
         try:
             news = fetch_news(ticker_symbol)
             if not news: st.info(f"No simulated news for '{ticker_symbol}'."); return
+
             headlines = [n['headline'] for n in news]
             scores = analyze_sentiment_vader(headlines)
             avg_score = get_average_sentiment_score(scores)
             avg_text = "Positive" if avg_score > 0.05 else "Negative" if avg_score < -0.05 else "Neutral"
             st.write(f"**Avg News Sentiment:** {avg_score:.4f} ({avg_text})")
 
-                # Calculate counts for the bar chart
-                positive_count = 0
-                neutral_count = 0
-                negative_count = 0
-                for score_data in scores:
-                    compound_score = score_data['sentiment']['compound']
-                    if compound_score > 0.05:
-                        positive_count += 1
-                    elif compound_score < -0.05:
-                        negative_count += 1
-                    else:
-                        neutral_count += 1
+            # Bar chart logic - this is the block to ensure is correctly indented
+            positive_count, neutral_count, negative_count = 0,0,0
+            for score_data in scores:
+                compound = score_data['sentiment']['compound']
+                if compound > 0.05: positive_count += 1
+                elif compound < -0.05: negative_count += 1
+                else: neutral_count += 1
 
-                # Create DataFrame for the chart
-                chart_data_df = pd.DataFrame({
-                    'Sentiment Category': ['Positive', 'Neutral', 'Negative'],
-                    'Number of Headlines': [positive_count, neutral_count, negative_count]
-                })
+            chart_df = pd.DataFrame({
+                'Sentiment': ['Positive', 'Neutral', 'Negative'],
+                'Headlines': [positive_count, neutral_count, negative_count]
+            })
 
-                # Display the chart conditionally
-                if chart_data_df['Number of Headlines'].sum() > 0:
-                    st.subheader("News Sentiment Distribution")
-                    st.bar_chart(chart_data_df.set_index('Sentiment Category'))
-                elif news: # news is not empty, but counts might be zero (e.g. all neutral by some edge case)
-                    st.info("No distinct positive/negative sentiment categories to plot for the current news items (e.g., all neutral).")
-                # If 'news' itself is empty, the earlier check `if not news:` handles it.
+            if chart_df['Headlines'].sum() > 0:
+                st.subheader("News Sentiment Distribution")
+                st.bar_chart(chart_df.set_index('Sentiment'))
+            elif news: # news is not empty, but all items might have been perfectly neutral for the thresholds
+                st.info("No distinct positive/negative sentiment categories to plot (e.g., all items were neutral).")
 
             with st.expander("View Individual News & Sentiments"):
                 for item, score_data in zip(news, scores):
@@ -389,3 +347,5 @@ elif app_mode == "Backtesting":
         else: handle_backtest_execution(bt_ticker, bt_start, bt_end, bt_capital, bt_params, bt_strategy_disp)
 elif app_mode == "About":
     render_about_page()
+
+[end of app.py]
