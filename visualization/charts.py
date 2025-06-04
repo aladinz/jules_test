@@ -79,8 +79,24 @@ def plot_stock_prices(data: pd.DataFrame,
             print(f"Error: Price column '{price_column}' for line chart not found in data.")
             fig.add_trace(go.Scatter(x=[None],y=[None], name="No Price Data"), row=1, col=1)
         else:
-            fig.add_trace(go.Scatter(x=data.index, y=data[price_column], mode='lines', name=data[price_column].name),
-                          row=1, col=1)
+            y_data_source = data[price_column]
+
+            if isinstance(y_data_source, pd.DataFrame):
+                if not y_data_source.empty:
+                    y_values_for_plot = y_data_source.iloc[:, 0] # Take the first column
+                else:
+                    y_values_for_plot = pd.Series(dtype='float64', index=data.index)
+            else: # It's already a Series (or should be)
+                y_values_for_plot = y_data_source
+
+            trace_name = str(price_column)
+
+            fig.add_trace(go.Scatter(
+                x=data.index,
+                y=y_values_for_plot,
+                mode='lines',
+                name=trace_name
+            ), row=1, col=1)
 
     if isinstance(sma_series, pd.Series) and not sma_series.empty:
         fig.add_trace(go.Scatter(x=sma_series.index, y=sma_series, mode='lines', name=f'SMA ({sma_window})',
