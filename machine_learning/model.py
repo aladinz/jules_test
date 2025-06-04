@@ -26,56 +26,90 @@ def train_model(X: pd.DataFrame, y: pd.Series, test_size: float = 0.2, random_st
         random_state (int): Controls the shuffling applied to the data before applying the split.
 
     Returns:
-        LogisticRegression: The trained Logistic Regression model.
-                            Returns None if training fails (e.g., insufficient data).
+        tuple[LogisticRegression | None, float]:
+            - The trained Logistic Regression model (or None if training fails).
+            - The accuracy of the model on the test set (or 0.0 if training fails).
     """
     if X.empty or y.empty:
         print("Error: Input features (X) or target (y) are empty. Cannot train model.")
-        return None
+        return None, 0.0
 
     if len(X) != len(y):
         print(f"Error: X and y have mismatched lengths: {len(X)} vs {len(y)}. Cannot train model.")
-        return None
+        return None, 0.0
 
     try:
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state, stratify=y if sum(y) >=2 else None)
+        # Stratify only if there are enough samples for both classes in y_train and y_test
+        # A simple check: if sum of y (number of positive class) is less than 2 or more than len(y)-2
+        # It implies very few samples of one class. Sum of y for binary 0/1 is count of 1s.
+        # For stratification, each class must have at least 2 members for a split.
+        # A more robust check for scikit-learn's train_test_split is that each class count must be >= n_splits for CV,
+        # or simply >= 2 for a single split if test_size is not too small.
+        can_stratify = True
+        if test_size > 0 and test_size < 1:
+            min_class_count = 2 # Simplified: need at least 2 of each class for train/test split
+            if sum(y) < min_class_count or (len(y) - sum(y)) < min_class_count:
+                can_stratify = False
+                print("Warning: Not enough samples in one class for stratification. Proceeding without it.")
 
-        if len(X_train) < 1 or len(X_test) < 1:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state,
+            stratify=y if can_stratify and test_size > 0 else None
+        )
+
+        if len(X_train) < 1 or (test_size > 0 and len(X_test) < 1):
              print(f"Warning: Not enough samples to train or test after split. X_train: {len(X_train)}, X_test: {len(X_test)}")
-             # Fallback: Train on all data if split results in empty sets (though less ideal for evaluation)
-             X_train, y_train = X, y # Use all data for training
-             X_test, y_test = X, y # And for testing (will give inflated accuracy)
+             # If test set is empty due to small data, train on all and report 0 test accuracy or train accuracy.
+             # For simplicity, if test set is empty but train is not, we'll return 0 for test accuracy.
+             if len(X_train) > 0 and test_size > 0 and len(X_test) == 0:
+                 model = LogisticRegression(solver='liblinear', random_state=random_state)
+                 model.fit(X_train, y_train) # Train on whatever is in X_train
+                 # Cannot evaluate on X_test, so accuracy is ill-defined or should be train accuracy.
+                 # Returning 0.0 for test accuracy in this specific edge case.
+                 print("Model trained on partial data (empty test set). Test accuracy reported as 0.0.")
+                 return model, 0.0
+             return None, 0.0
 
 
         model = LogisticRegression(solver='liblinear', random_state=random_state)
         model.fit(X_train, y_train)
 
-        # Evaluate on the test set
-        y_pred = model.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
-        print(f"Model trained. Test Set Accuracy: {accuracy:.4f}")
-
-        return model
-
-    except ValueError as e:
-        print(f"Error during model training or evaluation: {e}")
-        print("This can happen if data is too small for stratification or other issues.")
-        # Attempt to train without stratification if that was the issue.
-        try:
-            print("Attempting to train without stratification...")
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
-            model = LogisticRegression(solver='liblinear', random_state=random_state)
-            model.fit(X_train, y_train)
+        accuracy = 0.0
+        if not X_test.empty:
             y_pred = model.predict(X_test)
             accuracy = accuracy_score(y_test, y_pred)
-            print(f"Model trained (without stratification). Test Set Accuracy: {accuracy:.4f}")
-            return model
+            # The print statement will be removed/commented as per instructions.
+            # print(f"Model trained. Test Set Accuracy: {accuracy:.4f}")
+        else: # Should be caught by above checks, but as a safeguard
+            print("Warning: Test set is empty, cannot calculate accuracy. Returning 0.0 for accuracy.")
+
+        return model, accuracy
+
+    except ValueError as e: # Often from stratification issues with very small/imbalanced data
+        print(f"ValueError during model training (possibly stratification): {e}")
+        # Attempt to train without stratification as a fallback
+        try:
+            print("Attempting to train without stratification...")
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state, stratify=None)
+            if len(X_train) < 1 or (test_size > 0 and len(X_test) < 1): # Check again
+                print("Still not enough samples after removing stratification. Cannot train.")
+                return None, 0.0
+
+            model = LogisticRegression(solver='liblinear', random_state=random_state)
+            model.fit(X_train, y_train)
+
+            accuracy = 0.0
+            if not X_test.empty:
+                y_pred = model.predict(X_test)
+                accuracy = accuracy_score(y_test, y_pred)
+            # print(f"Model trained (without stratification). Test Set Accuracy: {accuracy:.4f}")
+            return model, accuracy
         except Exception as final_e:
             print(f"Error during model training fallback: {final_e}")
-            return None
+            return None, 0.0
     except Exception as e:
         print(f"An unexpected error occurred during model training: {e}")
-        return None
+        return None, 0.0
 
 def make_prediction(model: LogisticRegression, X_latest: pd.DataFrame) -> tuple[int | None, float | None]:
     """
@@ -173,10 +207,10 @@ if __name__ == '__main__':
             if len(y_train_data.value_counts()) < 2 and len(y_train_data) > 0 : # Check if y_sample has enough variety for stratification
                 print(f"Warning: Target variable y_train_data has only one class: {y_train_data.value_counts()}. Stratification might fail.")
 
-            trained_logistic_model = train_model(X_train_data, y_train_data)
+            trained_logistic_model, model_accuracy = train_model(X_train_data, y_train_data)
 
             if trained_logistic_model:
-                print("Logistic Regression model trained successfully.")
+                print(f"Logistic Regression model trained successfully. Test Accuracy from function: {model_accuracy:.4f}")
 
                 if X_latest_example is not None:
                     print(f"\nLatest features for prediction (X_latest_example):\n{X_latest_example}")
