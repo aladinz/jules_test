@@ -5,6 +5,7 @@ from io import StringIO
 import sys
 import plotly.graph_objects as go
 
+import yfinance as yf # Ensure yfinance is imported as yf
 # Import custom modules
 from data_ingestion.stock_data import get_historical_data, get_company_info
 from technical_analysis.indicators import calculate_sma, calculate_ema, calculate_rsi
@@ -52,6 +53,89 @@ def render_about_page():
     st.warning("Educational purposes only. Not financial advice. Trading involves risk.")
     st.markdown("---")
     st.markdown(f"*Jules Swing Trade Pro - Version 1.0 (Conceptual Build)*")
+
+# --- Market Overview Page Render Function ---
+def render_market_overview_page():
+    st.title("U.S. Market Overview")
+
+    indices = {
+        "S&P 500": "^GSPC",
+        "Dow 30": "^DJI",
+        "Nasdaq Composite": "^IXIC"
+    }
+
+    period_options = {"1M": "1mo", "3M": "3mo", "6M": "6mo", "YTD": "ytd", "1Y": "1y"}
+    selected_period_label = st.radio(
+        "Chart Period:",
+        list(period_options.keys()),
+        index=2,
+        horizontal=True,
+        key="market_overview_period_radio"
+    )
+    yf_period = period_options[selected_period_label]
+
+    st.markdown("---")
+
+    cols = st.columns(len(indices))
+
+    for i, (name, symbol) in enumerate(indices.items()):
+        with cols[i]:
+            st.subheader(name)
+            try:
+                with st.spinner(f"Fetching {name}..."):
+                    ticker_obj = yf.Ticker(symbol)
+                    info = ticker_obj.info
+
+                    current_price = info.get('regularMarketPrice', info.get('currentPrice'))
+                    prev_close = info.get('regularMarketPreviousClose')
+                    price_change = None
+                    percent_change = None
+
+                    if current_price is not None and prev_close is not None:
+                        price_change = current_price - prev_close
+                        if prev_close != 0:
+                            percent_change = (price_change / prev_close) * 100
+                        else:
+                            percent_change = float('inf') if price_change > 0 else float('-inf') if price_change < 0 else 0.0
+
+                        delta_text = f"{price_change:,.2f} ({percent_change:.2f}%)" if percent_change is not None else None
+                        st.metric(
+                            label="Current Level",
+                            value=f"{current_price:,.2f}" if current_price is not None else "N/A",
+                            delta=delta_text,
+                            delta_color=("inverse" if price_change is not None and price_change < 0 else "normal")
+                        )
+                    else:
+                        st.metric(label="Current Level", value="Fetching...", delta="Fetching...")
+                        # Fallback to historical data for last close if info lacks current price
+                        hist_for_latest = get_historical_data(symbol, period="5d", interval="1d")
+                        if not hist_for_latest.empty and len(hist_for_latest) >= 2:
+                            latest_close = hist_for_latest['Close'].iloc[-1]
+                            prev_day_close = hist_for_latest['Close'].iloc[-2]
+                            price_change = latest_close - prev_day_close
+                            percent_change = (price_change / prev_day_close) * 100 if prev_day_close != 0 else 0.0
+                            delta_text = f"{price_change:,.2f} ({percent_change:.2f}%)"
+                            st.metric(
+                                label="Last Close",
+                                value=f"{latest_close:,.2f}",
+                                delta=delta_text,
+                                delta_color=("inverse" if price_change < 0 else "normal")
+                            )
+                        elif not hist_for_latest.empty:
+                             st.metric(label="Last Close", value=f"{hist_for_latest['Close'].iloc[-1]:,.2f}", delta="N/A")
+                        else:
+                            st.metric(label="Current Level", value="N/A", delta="N/A") # Final fallback
+
+                    # Historical Data for Chart
+                    hist_df = get_historical_data(symbol, period=yf_period, interval="1d")
+                    if not hist_df.empty and 'Close' in hist_df.columns:
+                        st.line_chart(hist_df['Close'], use_container_width=True)
+                    else:
+                        st.warning("Chart data unavailable.")
+            except Exception as e:
+                st.error(f"Data error for {name}")
+                print(f"Error fetching data for {name} ({symbol}): {e}") # For server log
+
 
 def handle_backtest_execution(bt_ticker, bt_start_date, bt_end_date, initial_capital, strategy_params, strategy_type_display):
     """Handles the execution of the backtest and displays results."""
@@ -308,10 +392,13 @@ def main_trading_analysis_page():
 
 # --- Main App Structure ---
 st.sidebar.title("Jules Swing Trade Pro")
-app_mode = st.sidebar.selectbox("Choose App Mode", ["Trading Analysis", "Backtesting", "About"])
+app_mode = st.sidebar.selectbox("Choose App Mode",
+                                ["Trading Analysis", "U.S. Market Overview", "Backtesting", "About"])
 
 if app_mode == "Trading Analysis":
     main_trading_analysis_page()
+elif app_mode == "U.S. Market Overview":
+    render_market_overview_page()
 elif app_mode == "Backtesting":
     st.title("Strategy Backtester")
     st.sidebar.header("Backtest Settings")
