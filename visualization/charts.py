@@ -1,6 +1,7 @@
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
+import numpy as np # Added for np.random in __main__
 
 def plot_stock_prices(data: pd.DataFrame,
                       ticker_symbol: str,
@@ -100,13 +101,12 @@ def plot_stock_prices(data: pd.DataFrame,
 
 
     # Subplot 3: RSI (if applicable)
-    if isinstance(rsi_series, pd.Series) and not rsi_series.empty: # Condition already updated here
+    if isinstance(rsi_series, pd.Series) and not rsi_series.empty:
         fig.add_trace(go.Scatter(x=rsi_series.index, y=rsi_series, mode='lines', name=f'RSI ({rsi_window})',
                                  line=dict(color='purple', width=1)), row=3, col=1)
         fig.add_hline(y=70, line_dash="dash", line_color="red", line_width=1, row=3, col=1)
         fig.add_hline(y=30, line_dash="dash", line_color="green", line_width=1, row=3, col=1)
         fig.update_yaxes(title_text="RSI", range=[0,100], row=3, col=1)
-    # No specific x-axis title update needed here, will be handled by the global setting below
 
     fig.update_layout(
         title_text=f"{ticker_symbol} Analysis",
@@ -117,39 +117,31 @@ def plot_stock_prices(data: pd.DataFrame,
     )
 
     # Ensure x-axis title is only on the very bottom plot
-    if rows == 2:
+    if rows == 2: # Price, Volume
          fig.update_xaxes(title_text="Date", row=2, col=1)
          fig.update_xaxes(title_text=None, row=1, col=1)
-    elif rows == 3:
+    elif rows == 3: # Price, Volume, RSI
          fig.update_xaxes(title_text="Date", row=3, col=1)
          fig.update_xaxes(title_text=None, row=1, col=1)
          fig.update_xaxes(title_text=None, row=2, col=1)
-    else: # Single plot (should not happen with current logic, but as a safeguard)
+    else: # Single plot (e.g. if data was empty and only dummy traces were added, or future single-plot use)
         fig.update_xaxes(title_text="Date", row=1, col=1)
-
 
     return fig
 
 if __name__ == '__main__':
-    # Sample Data for testing (more comprehensive)
     num_days = 60
-    # Use numpy for random data generation if not already imported, but pandas usually brings it.
-    # For explicit use, ensure 'import numpy as np' is at the top if these lines are uncommented for direct run.
-    # For now, assuming pandas' internal numpy is sufficient for these test data lines.
     sample_dates_idx = pd.to_datetime([pd.Timestamp('2023-01-01') + pd.Timedelta(days=i) for i in range(num_days)])
     close_prices = 150 + pd.Series(np.random.randn(num_days) * 2 + 0.1).cumsum()
     open_prices = close_prices - pd.Series(np.random.uniform(-1, 1, num_days))
+    # Ensure high is max of open/close + random, and low is min of open/close - random
     high_prices = pd.concat([close_prices, open_prices], axis=1).max(axis=1) + pd.Series(np.random.uniform(0, 2, num_days))
     low_prices = pd.concat([close_prices, open_prices], axis=1).min(axis=1) - pd.Series(np.random.uniform(0, 2, num_days))
     volume_data = np.random.randint(100000, 5000000, num_days)
 
-
     sample_df_full = pd.DataFrame({
-        'Open': open_prices,
-        'High': high_prices,
-        'Low': low_prices,
-        'Close': close_prices,
-        'Volume': volume_data
+        'Open': open_prices, 'High': high_prices, 'Low': low_prices,
+        'Close': close_prices, 'Volume': volume_data
     }, index=sample_dates_idx)
 
     sma_10 = sample_df_full['Close'].rolling(window=10).mean()
@@ -164,52 +156,21 @@ if __name__ == '__main__':
     rsi_14 = 100 - (100 / (1 + rs_rsi))
     rsi_14.fillna(50, inplace=True)
 
-
     print("Generating sample charts (if running locally, uncomment .show()):")
-
-    # Test 1: Line chart, Volume, No indicators
     fig1 = plot_stock_prices(sample_df_full, "TEST1", chart_type='line')
-    # fig1.show()
     print("Fig1: Line chart with Volume created.")
-
-    # Test 2: Candlestick chart, Volume, SMA
-    fig2 = plot_stock_prices(sample_df_full, "TEST2", chart_type='candlestick',
-                             sma_series=sma_10, sma_window=10)
-    # fig2.show()
+    fig2 = plot_stock_prices(sample_df_full, "TEST2", chart_type='candlestick', sma_series=sma_10, sma_window=10)
     print("Fig2: Candlestick chart with Volume and SMA created.")
-
-    # Test 3: Line chart, Volume, SMA, EMA
-    fig3 = plot_stock_prices(sample_df_full, "TEST3", chart_type='line',
-                             sma_series=sma_10, sma_window=10,
-                             ema_series=ema_20, ema_window=20)
-    # fig3.show()
+    fig3 = plot_stock_prices(sample_df_full, "TEST3", chart_type='line', sma_series=sma_10, sma_window=10, ema_series=ema_20, ema_window=20)
     print("Fig3: Line chart with Volume, SMA, EMA created.")
-
-    # Test 4: Candlestick, Volume, SMA, EMA, RSI
-    fig4 = plot_stock_prices(sample_df_full, "TEST4", chart_type='candlestick',
-                             sma_series=sma_10, sma_window=10,
-                             ema_series=ema_20, ema_window=20,
-                             rsi_series=rsi_14, rsi_window=14)
-    # fig4.show()
+    fig4 = plot_stock_prices(sample_df_full, "TEST4", chart_type='candlestick', sma_series=sma_10, sma_window=10, ema_series=ema_20, ema_window=20, rsi_series=rsi_14, rsi_window=14)
     print("Fig4: Candlestick chart with Volume, SMA, EMA, RSI created.")
-
-    # Test 5: Line chart, Volume, RSI only
-    fig5 = plot_stock_prices(sample_df_full, "TEST5", chart_type='line',
-                             rsi_series=rsi_14, rsi_window=14)
-    # fig5.show()
+    fig5 = plot_stock_prices(sample_df_full, "TEST5", chart_type='line', rsi_series=rsi_14, rsi_window=14)
     print("Fig5: Line chart with Volume and RSI created.")
-
-    # Test 6: Data missing OHLC for candlestick (should fallback to line)
     sample_df_no_ohlc = sample_df_full[['Close', 'Volume']].copy()
     fig6 = plot_stock_prices(sample_df_no_ohlc, "TEST6_NO_OHLC", chart_type='candlestick')
-    # fig6.show()
     print("Fig6: Candlestick requested with missing OHLC (fallback to line) created.")
-
-    # Test 7: Data missing Volume
     sample_df_no_volume = sample_df_full[['Open', 'High', 'Low', 'Close']].copy()
     fig7 = plot_stock_prices(sample_df_no_volume, "TEST7_NO_VOL", chart_type='line', rsi_series=rsi_14, rsi_window=14)
-    # fig7.show()
     print("Fig7: Chart with missing Volume data created.")
-
     print("\nSample charts generation complete.")
-```
