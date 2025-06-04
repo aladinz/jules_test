@@ -61,7 +61,7 @@ def render_market_overview_page():
     indices = {
         "S&P 500": "^GSPC",
         "Dow 30": "^DJI",
-        "Nasdaq Composite": "^IXIC"
+        "Nasdaq Comp.": "^IXIC"  # Changed key here
     }
 
     period_options = {"1M": "1mo", "3M": "3mo", "6M": "6mo", "YTD": "ytd", "1Y": "1y"}
