@@ -170,7 +170,18 @@ def render_price_chart_tab(stock_data_df, ticker_symbol, chart_type, selected_in
     if "SMA" in selected_indicators: sma = calculate_sma(stock_data_df, sma_w)
     if "EMA" in selected_indicators: ema = calculate_ema(stock_data_df, ema_w)
     if "RSI" in selected_indicators: rsi = calculate_rsi(stock_data_df, rsi_w)
-    fig = plot_stock_prices(stock_data_df, ticker_symbol, chart_type.lower(), sma, sma_w, ema, ema_w, rsi, rsi_w)
+    fig = plot_stock_prices(
+        data=stock_data_df,
+        ticker_symbol=ticker_symbol,
+        price_column='Close',  # Default for line chart, Candlestick uses OHLC from data
+        chart_type=chart_type.lower(), # This is already the string 'line' or 'candlestick'
+        sma_series=sma,
+        sma_window=sma_w,
+        ema_series=ema,
+        ema_window=ema_w,
+        rsi_series=rsi,
+        rsi_window=rsi_w
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 def render_historical_data_tab(stock_data_df):
