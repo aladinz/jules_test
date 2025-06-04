@@ -192,13 +192,20 @@ def render_ml_predictions_tab(stock_data_df, is_enabled):
     st.subheader("ML-Based Price Prediction (Experimental)")
     if not is_enabled: st.info("Enable ML from sidebar."); return
     if stock_data_df.empty: st.warning("No data for ML."); return
+
+    accuracy_val = None  # Defensive initialization
+    log_content = ""     # Initialize log_content
+    model = None         # Initialize model
+
     try:
         X_ml, y_ml = prepare_features_for_ml(stock_data_df.copy())
         if X_ml.empty or len(X_ml) < 30: st.warning(f"Not enough data for ML (need 30 pts, got {len(X_ml)})."); return
+
         with st.spinner("Training ML model..."):
             old_stdout = sys.stdout; sys.stdout = captured_output = StringIO()
-            model = train_model(X_ml, y_ml)
-            sys.stdout = old_stdout; log = captured_output.getvalue()
+            model, accuracy_val = train_model(X_ml, y_ml) # accuracy_val gets assigned here if successful
+            sys.stdout = old_stdout; log_content = captured_output.getvalue()
+
         if model:
             # Display the textual prediction
             pred, prob = make_prediction(model, X_ml.iloc[[-1]])
@@ -219,13 +226,15 @@ def render_ml_predictions_tab(stock_data_df, is_enabled):
                     st.info("Prediction could not be made (or probability not available).")
 
             st.text("Model Training Log (stdout):")
-            st.text_area("ml_training_log", log, height=100) # Use the captured log
+            # Use log_content here, and check if it has data
+            if log_content:
+                st.text_area("ml_training_log", log_content, height=100)
             st.caption("ML model is experimental. For informational use only.")
         else:
             st.error("Failed to train ML model.")
-            if log: # Display log even if model training returned None, it might have error messages
+            if log_content:
                 st.text("Model Training Log (stdout - Attempt):")
-                st.text_area("ml_training_log_fail", log, height=100)
+                st.text_area("ml_training_log_fail", log_content, height=100)
     except Exception as e: st.error(f"ML Error: {e}")
 
 def render_sentiment_analysis_tab(ticker_symbol, is_enabled):
