@@ -249,6 +249,34 @@ def render_sentiment_analysis_tab(ticker_symbol, is_enabled):
             avg_score = get_average_sentiment_score(scores)
             avg_text = "Positive" if avg_score > 0.05 else "Negative" if avg_score < -0.05 else "Neutral"
             st.write(f"**Avg News Sentiment:** {avg_score:.4f} ({avg_text})")
+
+                # Calculate counts for the bar chart
+                positive_count = 0
+                neutral_count = 0
+                negative_count = 0
+                for score_data in scores:
+                    compound_score = score_data['sentiment']['compound']
+                    if compound_score > 0.05:
+                        positive_count += 1
+                    elif compound_score < -0.05:
+                        negative_count += 1
+                    else:
+                        neutral_count += 1
+
+                # Create DataFrame for the chart
+                chart_data_df = pd.DataFrame({
+                    'Sentiment Category': ['Positive', 'Neutral', 'Negative'],
+                    'Number of Headlines': [positive_count, neutral_count, negative_count]
+                })
+
+                # Display the chart conditionally
+                if chart_data_df['Number of Headlines'].sum() > 0:
+                    st.subheader("News Sentiment Distribution")
+                    st.bar_chart(chart_data_df.set_index('Sentiment Category'))
+                elif news: # news is not empty, but counts might be zero (e.g. all neutral by some edge case)
+                    st.info("No distinct positive/negative sentiment categories to plot for the current news items (e.g., all neutral).")
+                # If 'news' itself is empty, the earlier check `if not news:` handles it.
+
             with st.expander("View Individual News & Sentiments"):
                 for item, score_data in zip(news, scores):
                     s = score_data['sentiment']; c = s['compound']
