@@ -237,10 +237,68 @@ def handle_backtest_execution(bt_ticker, bt_start_date, bt_end_date, initial_cap
 def render_price_chart_tab(stock_data_df, ticker_symbol, chart_type, selected_indicators, sma_w, ema_w, rsi_w):
     st.subheader("Price Chart & Technical Indicators")
     if stock_data_df.empty: st.warning(f"No data for '{ticker_symbol}' to display chart."); return
+
+    with st.expander("Debug: stock_data_df Info", expanded=False):
+        if stock_data_df is not None and not stock_data_df.empty:
+            st.write("Shape:", stock_data_df.shape)
+            st.write("Columns:", stock_data_df.columns.tolist())
+            st.write("Index (first 5):", stock_data_df.index[:5])
+            st.write("Has 'Volume' column:", 'Volume' in stock_data_df.columns)
+            st.write("Data Types:", stock_data_df.dtypes)
+            st.dataframe(stock_data_df.head())
+        else:
+            st.write("stock_data_df is None or empty at this point.")
+
     sma, ema, rsi = None, None, None
     if "SMA" in selected_indicators: sma = calculate_sma(stock_data_df, sma_w)
     if "EMA" in selected_indicators: ema = calculate_ema(stock_data_df, ema_w)
     if "RSI" in selected_indicators: rsi = calculate_rsi(stock_data_df, rsi_w)
+
+    with st.expander("Debug: Indicator Series Info", expanded=False):
+        # SMA
+        st.markdown(f"**SMA selected**: `{'SMA' in selected_indicators}` | **Window**: `{sma_w}`")
+        if "SMA" in selected_indicators:
+            st.write("- SMA Series is None:", sma is None)
+            if sma is not None:
+                st.write(f"- SMA Series type: `{type(sma)}`")
+                is_series = isinstance(sma, pd.Series)
+                st.write(f"- Is pd.Series: `{is_series}`")
+                st.write(f"- SMA Series is empty: `{sma.empty if is_series else 'N/A'}`")
+                st.write(f"- SMA Series length: `{len(sma) if hasattr(sma, '__len__') else 'N/A'}`")
+                st.write(f"- SMA Series NaNs count: `{sma.isna().sum() if is_series else 'N/A'}`")
+                st.text("SMA Series head:")
+                st.dataframe(sma.head() if is_series else str(sma))
+        st.markdown("---")
+
+        # EMA
+        st.markdown(f"**EMA selected**: `{'EMA' in selected_indicators}` | **Window**: `{ema_w}`")
+        if "EMA" in selected_indicators:
+            st.write("- EMA Series is None:", ema is None)
+            if ema is not None:
+                st.write(f"- EMA Series type: `{type(ema)}`")
+                is_series = isinstance(ema, pd.Series)
+                st.write(f"- Is pd.Series: `{is_series}`")
+                st.write(f"- EMA Series is empty: `{ema.empty if is_series else 'N/A'}`")
+                st.write(f"- EMA Series length: `{len(ema) if hasattr(ema, '__len__') else 'N/A'}`")
+                st.write(f"- EMA Series NaNs count: `{ema.isna().sum() if is_series else 'N/A'}`")
+                st.text("EMA Series head:")
+                st.dataframe(ema.head() if is_series else str(ema))
+        st.markdown("---")
+
+        # RSI
+        st.markdown(f"**RSI selected**: `{'RSI' in selected_indicators}` | **Window**: `{rsi_w}`")
+        if "RSI" in selected_indicators:
+            st.write("- RSI Series is None:", rsi is None)
+            if rsi is not None:
+                st.write(f"- RSI Series type: `{type(rsi)}`")
+                is_series = isinstance(rsi, pd.Series)
+                st.write(f"- Is pd.Series: `{is_series}`")
+                st.write(f"- RSI Series is empty: `{rsi.empty if is_series else 'N/A'}`")
+                st.write(f"- RSI Series length: `{len(rsi) if hasattr(rsi, '__len__') else 'N/A'}`")
+                st.write(f"- RSI Series NaNs count: `{rsi.isna().sum() if is_series else 'N/A'}`")
+                st.text("RSI Series head:")
+                st.dataframe(rsi.head() if is_series else str(rsi))
+
     fig = plot_stock_prices(
         data=stock_data_df,
         ticker_symbol=ticker_symbol,
