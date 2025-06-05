@@ -43,17 +43,17 @@ def plot_stock_prices(data: pd.DataFrame,
     has_ohlc = all(col in data.columns for col in ['Open', 'High', 'Low', 'Close'])
     has_volume = 'Volume' in data.columns
 
-    # Determine number of rows and row heights
-    rows = 2
-    row_heights = [0.7, 0.3]
-    specs = [[{"secondary_y": False}], [{"secondary_y": False}]]
+    # Determine number of rows and row heights based on RSI presence
+    plot_rsi_subplot = isinstance(rsi_series, pd.Series) and not rsi_series.empty
 
-    # Use isinstance to check if rsi_series is a pandas Series and not empty
-    if isinstance(rsi_series, pd.Series) and not rsi_series.empty:
+    if plot_rsi_subplot:
         rows = 3
-        row_heights = [0.6, 0.2, 0.2]
+        row_heights = [0.6, 0.2, 0.2] # Price, Volume, RSI
         specs = [[{"secondary_y": False}], [{"secondary_y": False}], [{"secondary_y": False}]]
-
+    else:
+        rows = 2
+        row_heights = [0.7, 0.3] # Price, Volume
+        specs = [[{"secondary_y": False}], [{"secondary_y": False}]]
 
     fig = make_subplots(rows=rows, cols=1, shared_xaxes=True,
                         vertical_spacing=0.03,
@@ -117,7 +117,7 @@ def plot_stock_prices(data: pd.DataFrame,
 
 
     # Subplot 3: RSI (if applicable)
-    if isinstance(rsi_series, pd.Series) and not rsi_series.empty:
+    if plot_rsi_subplot: # Only try to plot if we made space for it (rows=3)
         fig.add_trace(go.Scatter(x=rsi_series.index, y=rsi_series, mode='lines', name=f'RSI ({rsi_window})',
                                  line=dict(color='purple', width=1)), row=3, col=1)
         fig.add_hline(y=70, line_dash="dash", line_color="red", line_width=1, row=3, col=1)
