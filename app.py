@@ -370,7 +370,18 @@ def main_trading_analysis_page():
         try: company_info_data = get_company_info(ticker_symbol)
         except Exception as e: st.error(f"Company Info Error: {e}"); company_info_data={}
         try: stock_data_df_main = get_historical_data(ticker_symbol, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
-        except Exception as e: st.error(f"Historical Data Error: {e}")
+        except Exception as e: st.error(f"Historical Data Error: {e}") # stock_data_df_main will remain empty
+
+    if stock_data_df_main.empty:
+        st.error(
+            f"Failed to fetch valid historical data for '{ticker_symbol}' for the selected date range. \n"
+            "Possible reasons:\n"
+            "- Incorrect ticker symbol.\n"
+            "- No data available for the specified dates (e.g., market holidays, before listing, future dates).\n"
+            "- Network connectivity issues or temporary problems with the data provider (Yahoo Finance).\n\n"
+            "Please check your inputs or try again later. No chart or further analysis can be displayed without this core data."
+        )
+        st.stop() # Stop execution for this page/view
 
     tab_titles = ["Price Chart", "Historical Data", "Company Info"]
     if enable_ml: tab_titles.insert(2, "ML Predictions")
