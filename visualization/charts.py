@@ -108,10 +108,28 @@ def plot_stock_prices(data: pd.DataFrame,
 
 
     # Subplot 2: Volume
-    if has_volume:
-        fig.add_trace(go.Bar(x=data.index, y=data['Volume'], name='Volume', marker_color='rgba(100,100,150,0.5)'),
-                      row=2, col=1)
-    else:
+    if has_volume: # This check ('Volume' in data.columns) remains
+        volume_data_source = data['Volume']
+        volume_series_for_plot = None # Initialize
+
+        if isinstance(volume_data_source, pd.DataFrame):
+            if not volume_data_source.empty and volume_data_source.shape[1] > 0:
+                volume_series_for_plot = volume_data_source.iloc[:, 0] # Use first column
+            else: # Empty DataFrame
+                volume_series_for_plot = pd.Series(dtype='float64', index=data.index)
+        elif isinstance(volume_data_source, pd.Series):
+            volume_series_for_plot = volume_data_source
+        else:
+            print(f"Warning: Volume data for column 'Volume' is unexpected type: {type(volume_data_source)}. Plotting empty.")
+            volume_series_for_plot = pd.Series(dtype='float64', index=data.index)
+
+        fig.add_trace(go.Bar(
+            x=data.index,
+            y=volume_series_for_plot,
+            name='Volume',
+            marker_color='rgba(100,100,150,0.5)'
+        ), row=2, col=1)
+    else: # This is the existing 'else' for 'if has_volume:'
         fig.add_trace(go.Scatter(x=[None],y=[None], name="No Volume Data"), row=2, col=1)
     fig.update_yaxes(title_text="Volume", row=2, col=1)
 

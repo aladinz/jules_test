@@ -261,17 +261,29 @@ def render_price_chart_tab(stock_data_df, ticker_symbol, chart_type, selected_in
             st.write("- SMA Series is None:", sma is None)
             if sma is not None:
                 st.write(f"- SMA Series type: `{type(sma)}`")
-                is_series = isinstance(sma, pd.Series)
-                st.write(f"- Is pd.Series: `{is_series}`")
-                st.write(f"- SMA Series is empty: `{sma.empty if is_series else 'N/A'}`")
+                is_sma_series = isinstance(sma, pd.Series) # Local check for SMA
+                st.write(f"- Is pd.Series: `{is_sma_series}`")
+                st.write(f"- SMA Series is empty: `{sma.empty if is_sma_series else 'N/A'}`")
                 st.write(f"- SMA Series length: `{len(sma) if hasattr(sma, '__len__') else 'N/A'}`")
-                st.write(f"- SMA Series NaNs count: `{sma.isna().sum() if is_series else 'N/A'}`")
-                if is_series:
-                    st.text("SMA Series head:")
-                    st.dataframe(sma.head())
+                st.write(f"- SMA Series NaNs count: `{sma.isna().sum() if is_sma_series else 'N/A'}`")
+                if is_sma_series:
+                    head_data = sma.head()
+                    if not head_data.empty:
+                        st.text(f"{sma.name if sma.name else 'SMA'} Series head:")
+                        try:
+                            series_name = str(sma.name) if sma.name is not None else 'Value'
+                            df_to_display = head_data.to_frame(name=series_name)
+                            df_to_display[df_to_display.columns[0]] = df_to_display[df_to_display.columns[0]].astype('float64')
+                            st.dataframe(df_to_display)
+                        except Exception as e_display:
+                            st.text(f"Error displaying SMA head as DataFrame: {e_display}")
+                            st.text("Fallback string representation of head:")
+                            st.text(str(head_data))
+                    else:
+                        st.text(f"{sma.name if sma.name else 'SMA'} Series head is empty.")
                 else:
                     st.text("SMA object is not a pd.Series. String representation:")
-                    st.text(str(sma))
+                    st.text(str(sma)[:200] + "..." if len(str(sma)) > 200 else str(sma))
         st.markdown("---")
 
         # EMA
@@ -280,17 +292,29 @@ def render_price_chart_tab(stock_data_df, ticker_symbol, chart_type, selected_in
             st.write("- EMA Series is None:", ema is None)
             if ema is not None:
                 st.write(f"- EMA Series type: `{type(ema)}`")
-                is_series = isinstance(ema, pd.Series)
-                st.write(f"- Is pd.Series: `{is_series}`")
-                st.write(f"- EMA Series is empty: `{ema.empty if is_series else 'N/A'}`")
+                is_ema_series = isinstance(ema, pd.Series) # Local check for EMA
+                st.write(f"- Is pd.Series: `{is_ema_series}`")
+                st.write(f"- EMA Series is empty: `{ema.empty if is_ema_series else 'N/A'}`")
                 st.write(f"- EMA Series length: `{len(ema) if hasattr(ema, '__len__') else 'N/A'}`")
-                st.write(f"- EMA Series NaNs count: `{ema.isna().sum() if is_series else 'N/A'}`")
-                if is_series: # Assuming is_series was redefined for ema in its block
-                    st.text("EMA Series head:")
-                    st.dataframe(ema.head())
+                st.write(f"- EMA Series NaNs count: `{ema.isna().sum() if is_ema_series else 'N/A'}`")
+                if is_ema_series:
+                    head_data = ema.head()
+                    if not head_data.empty:
+                        st.text(f"{ema.name if ema.name else 'EMA'} Series head:")
+                        try:
+                            series_name = str(ema.name) if ema.name is not None else 'Value'
+                            df_to_display = head_data.to_frame(name=series_name)
+                            df_to_display[df_to_display.columns[0]] = df_to_display[df_to_display.columns[0]].astype('float64')
+                            st.dataframe(df_to_display)
+                        except Exception as e_display:
+                            st.text(f"Error displaying EMA head as DataFrame: {e_display}")
+                            st.text("Fallback string representation of head:")
+                            st.text(str(head_data))
+                    else:
+                        st.text(f"{ema.name if ema.name else 'EMA'} Series head is empty.")
                 else:
                     st.text("EMA object is not a pd.Series. String representation:")
-                    st.text(str(ema))
+                    st.text(str(ema)[:200] + "..." if len(str(ema)) > 200 else str(ema))
         st.markdown("---")
 
         # RSI
@@ -299,17 +323,29 @@ def render_price_chart_tab(stock_data_df, ticker_symbol, chart_type, selected_in
             st.write("- RSI Series is None:", rsi is None)
             if rsi is not None:
                 st.write(f"- RSI Series type: `{type(rsi)}`")
-                is_series = isinstance(rsi, pd.Series)
-                st.write(f"- Is pd.Series: `{is_series}`")
-                st.write(f"- RSI Series is empty: `{rsi.empty if is_series else 'N/A'}`")
+                is_rsi_series = isinstance(rsi, pd.Series) # Local check for RSI
+                st.write(f"- Is pd.Series: `{is_rsi_series}`")
+                st.write(f"- RSI Series is empty: `{rsi.empty if is_rsi_series else 'N/A'}`")
                 st.write(f"- RSI Series length: `{len(rsi) if hasattr(rsi, '__len__') else 'N/A'}`")
-                st.write(f"- RSI Series NaNs count: `{rsi.isna().sum() if is_series else 'N/A'}`")
-                if is_series: # Assuming is_series was redefined for rsi in its block
-                    st.text("RSI Series head:")
-                    st.dataframe(rsi.head())
+                st.write(f"- RSI Series NaNs count: `{rsi.isna().sum() if is_rsi_series else 'N/A'}`")
+                if is_rsi_series:
+                    head_data = rsi.head()
+                    if not head_data.empty:
+                        st.text(f"{rsi.name if rsi.name else 'RSI'} Series head:")
+                        try:
+                            series_name = str(rsi.name) if rsi.name is not None else 'Value'
+                            df_to_display = head_data.to_frame(name=series_name)
+                            df_to_display[df_to_display.columns[0]] = df_to_display[df_to_display.columns[0]].astype('float64')
+                            st.dataframe(df_to_display)
+                        except Exception as e_display:
+                            st.text(f"Error displaying RSI head as DataFrame: {e_display}")
+                            st.text("Fallback string representation of head:")
+                            st.text(str(head_data))
+                    else:
+                        st.text(f"{rsi.name if rsi.name else 'RSI'} Series head is empty.")
                 else:
                     st.text("RSI object is not a pd.Series. String representation:")
-                    st.text(str(rsi))
+                    st.text(str(rsi)[:200] + "..." if len(str(rsi)) > 200 else str(rsi))
 
     fig = plot_stock_prices(
         data=stock_data_df,

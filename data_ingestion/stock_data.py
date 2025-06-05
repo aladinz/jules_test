@@ -36,10 +36,15 @@ def get_historical_data(ticker: str, start_date: str = None, end_date: str = Non
             # print(f"No data found for {ticker} with parameters: period={period}, start={start_date}, end={end_date}, interval={interval}")
             pass
 
-        # Ensure the index is DatetimeIndex, especially if fetching for single days or very short periods
-        # where yfinance might sometimes return a non-DatetimeIndex if data is sparse.
+        # Flatten columns if they are MultiIndex (often happens with yf.download for single ticker)
+        if not data.empty and isinstance(data.columns, pd.MultiIndex):
+            # Keep the first level of column names (e.g., 'Open', 'High', 'Low', 'Close', 'Volume')
+            # yfinance might return [('Open', 'TICKER'), ('High', 'TICKER'), ...]
+            data.columns = data.columns.get_level_values(0)
+
+        # Ensure the index is DatetimeIndex
         if not isinstance(data.index, pd.DatetimeIndex) and not data.empty:
-             data.index = pd.to_datetime(data.index)
+             data.index = pd.to_datetime(data.index) # Convert if not already DatetimeIndex
 
         return data
 
@@ -78,6 +83,7 @@ if __name__ == '__main__':
     print(f"--- Testing get_historical_data with start/end dates for {sample_ticker} ---")
     historical_data_sd = get_historical_data(sample_ticker, start_date=sample_start_date, end_date=sample_end_date)
     if not historical_data_sd.empty:
+        print(f"Columns for {sample_ticker} (start/end): {historical_data_sd.columns}")
         print(f"Shape: {historical_data_sd.shape}")
         print(historical_data_sd.head(2))
         print(historical_data_sd.tail(2))
@@ -86,15 +92,22 @@ if __name__ == '__main__':
 
     print(f"\n--- Testing get_historical_data with period for {sample_ticker} ---")
     data_period_1mo = get_historical_data(sample_ticker, period="1mo")
-    print(f"{sample_ticker} 1 month data (period='1mo'). Shape: {data_period_1mo.shape}")
     if not data_period_1mo.empty:
+        print(f"Columns for {sample_ticker} (period='1mo'): {data_period_1mo.columns}")
+        print(f"{sample_ticker} 1 month data (period='1mo'). Shape: {data_period_1mo.shape}")
         print(data_period_1mo.head(2))
         print(data_period_1mo.tail(2))
+    else:
+        print(f"No data returned for {sample_ticker} with period='1mo'.")
+
 
     data_period_ytd_weekly = get_historical_data("TSLA", period="ytd", interval="1wk")
-    print(f"\nTSLA YTD data (period='ytd', interval='1wk'). Shape: {data_period_ytd_weekly.shape}")
     if not data_period_ytd_weekly.empty:
+        print(f"\nColumns for TSLA (period='ytd', interval='1wk'): {data_period_ytd_weekly.columns}")
+        print(f"TSLA YTD data (period='ytd', interval='1wk'). Shape: {data_period_ytd_weekly.shape}")
         print(data_period_ytd_weekly.tail(2))
+    else:
+        print(f"\nNo data returned for TSLA with period='ytd', interval='1wk'.")
 
     print(f"\n--- Testing get_historical_data with no date/period (should fail) ---")
     no_date_data = get_historical_data("GE")
