@@ -266,8 +266,12 @@ def render_price_chart_tab(stock_data_df, ticker_symbol, chart_type, selected_in
                 st.write(f"- SMA Series is empty: `{sma.empty if is_series else 'N/A'}`")
                 st.write(f"- SMA Series length: `{len(sma) if hasattr(sma, '__len__') else 'N/A'}`")
                 st.write(f"- SMA Series NaNs count: `{sma.isna().sum() if is_series else 'N/A'}`")
-                st.text("SMA Series head:")
-                st.dataframe(sma.head() if is_series else str(sma))
+                if is_series:
+                    st.text("SMA Series head:")
+                    st.dataframe(sma.head())
+                else:
+                    st.text("SMA object is not a pd.Series. String representation:")
+                    st.text(str(sma))
         st.markdown("---")
 
         # EMA
@@ -281,8 +285,12 @@ def render_price_chart_tab(stock_data_df, ticker_symbol, chart_type, selected_in
                 st.write(f"- EMA Series is empty: `{ema.empty if is_series else 'N/A'}`")
                 st.write(f"- EMA Series length: `{len(ema) if hasattr(ema, '__len__') else 'N/A'}`")
                 st.write(f"- EMA Series NaNs count: `{ema.isna().sum() if is_series else 'N/A'}`")
-                st.text("EMA Series head:")
-                st.dataframe(ema.head() if is_series else str(ema))
+                if is_series: # Assuming is_series was redefined for ema in its block
+                    st.text("EMA Series head:")
+                    st.dataframe(ema.head())
+                else:
+                    st.text("EMA object is not a pd.Series. String representation:")
+                    st.text(str(ema))
         st.markdown("---")
 
         # RSI
@@ -296,8 +304,12 @@ def render_price_chart_tab(stock_data_df, ticker_symbol, chart_type, selected_in
                 st.write(f"- RSI Series is empty: `{rsi.empty if is_series else 'N/A'}`")
                 st.write(f"- RSI Series length: `{len(rsi) if hasattr(rsi, '__len__') else 'N/A'}`")
                 st.write(f"- RSI Series NaNs count: `{rsi.isna().sum() if is_series else 'N/A'}`")
-                st.text("RSI Series head:")
-                st.dataframe(rsi.head() if is_series else str(rsi))
+                if is_series: # Assuming is_series was redefined for rsi in its block
+                    st.text("RSI Series head:")
+                    st.dataframe(rsi.head())
+                else:
+                    st.text("RSI object is not a pd.Series. String representation:")
+                    st.text(str(rsi))
 
     fig = plot_stock_prices(
         data=stock_data_df,
