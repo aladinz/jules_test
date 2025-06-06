@@ -180,7 +180,7 @@ def render_market_overview_page():
                     )
 
                     if not intra_df.empty and 'Close' in intra_df.columns:
-                        st.line_chart(intra_df['Close'], use_container_width=True, key=f"intra_chart_{symbol}_{intra_interval}_{yf_intra_period}") # More unique key
+                        st.line_chart(intra_df['Close'], use_container_width=True) # Removed key argument
                     else:
                         st.caption("Intra-day data not available for this selection.")
             except Exception as e:
