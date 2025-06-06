@@ -268,19 +268,6 @@ def render_ml_predictions_tab(stock_data_df, is_enabled):
         X_ml, y_ml = prepare_features_for_ml(stock_data_df.copy())
         if X_ml.empty or len(X_ml) < 30: st.warning(f"Not enough data for ML (need 30 pts, got {len(X_ml)})."); return
 
-        with st.expander("Debug: ML Training Data Info", expanded=True):
-            st.write("Shape of X_ml (features):", X_ml.shape)
-            st.write("Shape of y_ml (target):", y_ml.shape)
-            if not y_ml.empty:
-                st.write("Target Variable (y_ml) Distribution (1=UP, 0=DOWN/SAME):")
-                st.dataframe(y_ml.value_counts(normalize=True).rename("percentage").to_frame())
-            else:
-                st.write("Target Variable (y_ml) is empty.")
-            st.write("Features (X_ml) head (first 5 rows):")
-            st.dataframe(X_ml.head())
-            st.write("Features (X_ml) describe:")
-            st.dataframe(X_ml.describe())
-
         with st.spinner("Training ML model..."):
             old_stdout = sys.stdout; sys.stdout = captured_output = StringIO()
             model, accuracy_val = train_model(X_ml, y_ml)
@@ -288,27 +275,6 @@ def render_ml_predictions_tab(stock_data_df, is_enabled):
 
         if model:
             pred, prob = make_prediction(model, X_ml.iloc[[-1]])
-
-            with st.expander("Debug: ML Prediction Details", expanded=True):
-                st.write(f"Raw probability for class 0 (DOWN/SAME): {1 - prob:.4f}" if prob is not None else "Prob N/A")
-                st.write(f"Raw probability for class 1 (UP): {prob:.4f}" if prob is not None else "Prob N/A")
-                st.write(f"Prediction made by model's .predict() (0 or 1): {pred}" if pred is not None else "Pred N/A")
-                st.write(f"Threshold for .predict() is typically: 0.5")
-
-                if isinstance(model, LogisticRegression) and hasattr(model, 'coef_') and hasattr(X_ml, 'columns'):
-                    if X_ml.shape[1] == model.coef_[0].shape[0]:
-                        st.write("Model Coefficients (Logistic Regression):")
-                        try:
-                            feature_names = [str(col) for col in X_ml.columns]
-                            coeffs_df = pd.DataFrame(model.coef_[0], index=feature_names, columns=['Coefficient'])
-                            st.dataframe(coeffs_df.sort_values(by='Coefficient', ascending=False))
-                        except Exception as e_coeff:
-                            st.write(f"Could not display coefficients due to error: {e_coeff}")
-                            st.write(f"Model coef shape: {model.coef_[0].shape}, X_ml columns: {len(X_ml.columns)}")
-                    else:
-                        st.write(f"Could not display coefficients: Mismatch between number of feature columns in X_ml ({X_ml.shape[1]}) and model coefficients ({model.coef_[0].shape[0]}).")
-                elif not isinstance(model, LogisticRegression):
-                    st.write(f"Model is of type {type(model)}, not LogisticRegression. Cannot display coefficients directly.")
 
             if pred is not None: st.markdown(f"**Prediction for Next Day:** {'**UP**' if pred==1 else '**DOWN/SAME**'}")
             col1, col2 = st.columns(2)
