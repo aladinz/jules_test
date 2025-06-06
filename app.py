@@ -137,6 +137,56 @@ def render_market_overview_page():
                 st.error(f"Data error for {name}")
                 print(f"Error fetching data for {name} ({symbol}): {e}") # For server log
 
+    st.markdown("---")
+    st.subheader("Intra-day Market View (Recent Activity)")
+
+    col_intra1, col_intra2 = st.columns(2)
+    with col_intra1:
+        intra_interval = st.selectbox(
+            "Intra-day Interval:",
+            options=["1m", "5m", "15m", "30m", "1h"],
+            index=2,
+            key="intra_interval_select",
+            help="Intraday data availability: '1m' for last 7 days, other intervals for up to 60 days."
+        )
+    with col_intra2:
+        intra_period_options = {
+            "Today (Current/Last Trading Day)": "1d",
+            "Last 2 Trading Days": "2d",
+            "Last 5 Trading Days": "5d"
+        }
+        selected_intra_period_label = st.selectbox(
+            "Intra-day Data For:",
+            options=list(intra_period_options.keys()),
+            index=0,
+            key="intra_period_select"
+        )
+        yf_intra_period = intra_period_options[selected_intra_period_label]
+
+    st.markdown("---")
+
+    intra_chart_cols = st.columns(len(indices)) # Re-uses 'indices' dict from above
+
+    for i, (name, symbol) in enumerate(indices.items()):
+        with intra_chart_cols[i]:
+            st.markdown(f"**{name} ({intra_interval})**")
+            try:
+                with st.spinner(f"Fetching {intra_interval} data for {name}..."):
+                    intra_df = get_historical_data(
+                        symbol,
+                        period=yf_intra_period,
+                        interval=intra_interval,
+                        prepost=True
+                    )
+
+                    if not intra_df.empty and 'Close' in intra_df.columns:
+                        st.line_chart(intra_df['Close'], use_container_width=True, key=f"intra_chart_{symbol}_{intra_interval}_{yf_intra_period}") # More unique key
+                    else:
+                        st.caption("Intra-day data not available for this selection.")
+            except Exception as e:
+                st.error(f"Failed to load {intra_interval} data for {name}.")
+                print(f"Error fetching intraday for {name} ({symbol}), {intra_interval}, {yf_intra_period}: {e}")
+
 
 def handle_backtest_execution(bt_ticker, bt_start_date, bt_end_date, initial_capital, strategy_params, strategy_type_display):
     """Handles the execution of the backtest and displays results."""

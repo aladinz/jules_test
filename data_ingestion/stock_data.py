@@ -1,7 +1,7 @@
 import yfinance as yf
 import pandas as pd
 
-def get_historical_data(ticker: str, start_date: str = None, end_date: str = None, period: str = None, interval: str = "1d") -> pd.DataFrame:
+def get_historical_data(ticker: str, start_date: str = None, end_date: str = None, period: str = None, interval: str = "1d", prepost: bool = False) -> pd.DataFrame:
     """
     Fetches historical stock data using yfinance.
 
@@ -12,16 +12,19 @@ def get_historical_data(ticker: str, start_date: str = None, end_date: str = Non
         period (str, optional): Data period to download (e.g., "1mo", "6mo", "ytd", "1y", "max").
                                If provided, start_date and end_date are ignored by yfinance.
         interval (str, optional): Data interval (e.g., "1d", "1wk", "1mo"). Defaults to "1d".
+        prepost (bool, optional): Set to True to include Pre and Post market data. Defaults to False.
 
     Returns:
         pd.DataFrame: DataFrame with historical data (OHLC, Volume), indexed by Date.
                       Returns an empty DataFrame on error or if no data is found.
     """
     try:
-        # yf.download is generally preferred over yf.Ticker().history for direct data fetching
-        # as it's more direct for this purpose.
-        # auto_adjust=True typically handles stock splits and dividends for OHLC.
-        params = {"progress": False, "auto_adjust": True, "interval": interval}
+        params = {
+            "progress": False,
+            "auto_adjust": True,
+            "interval": interval,
+            "prepost": prepost # Added prepost
+        }
 
         if period:
             data = yf.download(ticker, period=period, **params)
@@ -133,5 +136,21 @@ if __name__ == '__main__':
         print(f"Correctly received empty DataFrame for invalid ticker historical data.")
 
     invalid_info = get_company_info(sample_invalid_ticker)
-    if not invalid_info or invalid_info.get('regularMarketPrice') is None : # .info for invalid ticker might return dict with 'regularMarketPrice': None
+    if not invalid_info or invalid_info.get('regularMarketPrice') is None :
         print(f"Correctly received minimal/empty info for invalid ticker company data.")
+
+    print("\n--- Testing get_historical_data with prepost=True ---")
+    # For prepost data, a short period and small interval are best.
+    # yfinance provides 1m data for last 7 days, other intervals for last 60 days.
+    # Using 15m for a 2-day period to likely see some effect if run during extended hours or for active stocks.
+    data_prepost_test = get_historical_data("AAPL", period="2d", interval="15m", prepost=True)
+    print(f"AAPL data for 2 days, 15min interval, prepost=True. Shape: {data_prepost_test.shape}")
+    if not data_prepost_test.empty:
+        print("Sample of data with prepost=True (first 3 rows):")
+        print(data_prepost_test.head(3))
+        print("Sample of data with prepost=True (last 3 rows):")
+        print(data_prepost_test.tail(3))
+        if isinstance(data_prepost_test.index, pd.DatetimeIndex):
+            print(f"Index type is DatetimeIndex. First timestamp: {data_prepost_test.index[0]}")
+    else:
+        print("No data returned for AAPL with prepost=True (this might be normal if market is closed and no recent extended hours data).")
